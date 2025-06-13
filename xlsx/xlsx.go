@@ -20,62 +20,13 @@ type ReadOptions struct {
 
 // Read read xlsx file
 func Read(path string, opt ...func(*ReadOptions)) (ztype.Maps, error) {
-	f, err := excelize.OpenFile(path)
+	f, err := Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	o := zutil.Optional(ReadOptions{Sheet: "Sheet1"}, opt...)
-	rows, err := f.GetRows(o.Sheet)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(rows) < 2 {
-		return ztype.Maps{}, errors.New("no data")
-	}
-
-	cols := rows[0]
-	rows = rows[1:]
-
-	if o.Reverse {
-		rows = zarray.Reverse(rows)
-	}
-
-	parallel := uint(len(rows) / 3000)
-
-	return zarray.Filter(zarray.Map(rows, func(index int, row []string) ztype.Map {
-		data := make(ztype.Map, len(row))
-
-		isEmptyRow := true
-		for j := range row {
-			if j >= len(cols) {
-				continue
-			}
-
-			if len(o.Fields) > 0 && !zarray.Contains(o.Fields, cols[j]) {
-				continue
-			}
-
-			data[cols[j]] = row[j]
-			if isEmptyRow && row[j] != "" {
-				isEmptyRow = false
-			}
-		}
-
-		if isEmptyRow {
-			return ztype.Map{}
-		}
-
-		if o.Handler != nil {
-			return o.Handler(index, data)
-		}
-
-		return data
-	}, parallel), func(index int, item ztype.Map) bool {
-		return len(item) > 0
-	}), nil
+	return f.Read(opt...)
 }
 
 type WriteOptions struct {
