@@ -47,7 +47,10 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		rows = zarray.Reverse(rows)
 	}
 
-	parallel := uint(len(rows) / 3000)
+	parallel := o.Parallel
+	if parallel == 0 {
+		parallel = uint(len(rows) / 3000)
+	}
 
 	return zarray.Filter(zarray.Map(rows, func(index int, row []string) ztype.Map {
 		data := make(ztype.Map, len(row))
