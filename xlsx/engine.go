@@ -30,7 +30,15 @@ func (x *Xlsx) Engine() *excelize.File {
 }
 
 func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
-	o := zutil.Optional(ReadOptions{Sheet: "Sheet1"}, opt...)
+	o := zutil.Optional(ReadOptions{}, opt...)
+	if o.Sheet == "" {
+		sheets := x.f.GetSheetList()
+		if len(sheets) == 0 {
+			return nil, errors.New("no sheet")
+		}
+		o.Sheet = sheets[0]
+	}
+
 	rows, err := x.f.GetRows(o.Sheet)
 	if err != nil {
 		return nil, err
