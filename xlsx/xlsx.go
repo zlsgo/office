@@ -17,6 +17,9 @@ type ReadOptions struct {
 	Fields   []string
 	Reverse  bool
 	Parallel uint
+	OffsetX  int
+	OffsetY  int
+	NoHeader bool
 }
 
 // Read read xlsx file

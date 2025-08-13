@@ -44,12 +44,43 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		return nil, err
 	}
 
-	if len(rows) < 2 {
+	minRows := o.OffsetY + 2
+	if o.NoHeader {
+		minRows = o.OffsetY + 1
+	}
+	if len(rows) < minRows {
 		return ztype.Maps{}, errors.New("no data")
 	}
 
-	cols := rows[0]
-	rows = rows[1:]
+	toCol := func(i int) string {
+		s := ""
+		for i >= 0 {
+			s = string(rune('A'+(i%26))) + s
+			i = i/26 - 1
+		}
+		return s
+	}
+
+	var cols []string
+	if o.NoHeader {
+		headerRow := rows[o.OffsetY]
+		cols = make([]string, len(headerRow))
+		for i := range headerRow {
+			cols[i] = toCol(i)
+		}
+		rows = rows[o.OffsetY:]
+	} else {
+		cols = rows[o.OffsetY]
+		rows = rows[o.OffsetY+1:]
+	}
+
+	if o.OffsetX > 0 {
+		if o.OffsetX < len(cols) {
+			cols = cols[o.OffsetX:]
+		} else {
+			cols = []string{}
+		}
+	}
 
 	if o.Reverse {
 		rows = zarray.Reverse(rows)
@@ -60,12 +91,31 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		parallel = uint(len(rows) / 3000)
 	}
 
-	return zarray.Filter(zarray.Map(rows, func(index int, row []string) ztype.Map {
+	return zarray.Map(rows, func(index int, row []string) ztype.Map {
 		data := make(ztype.Map, len(row))
 
 		isEmptyRow := true
-		for j := range row {
+		rowEffective := row
+		if o.OffsetX > 0 {
+			if o.OffsetX < len(row) {
+				rowEffective = row[o.OffsetX:]
+			} else {
+				rowEffective = []string{}
+			}
+		}
+
+		for j := range rowEffective {
 			if j >= len(cols) {
+				if o.NoHeader {
+					key := toCol(o.OffsetX + j)
+					if len(o.Fields) > 0 && !zarray.Contains(o.Fields, key) {
+						continue
+					}
+					data[key] = rowEffective[j]
+					if isEmptyRow && rowEffective[j] != "" {
+						isEmptyRow = false
+					}
+				}
 				continue
 			}
 
@@ -73,8 +123,8 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 				continue
 			}
 
-			data[cols[j]] = row[j]
-			if isEmptyRow && row[j] != "" {
+			data[cols[j]] = rowEffective[j]
+			if isEmptyRow && rowEffective[j] != "" {
 				isEmptyRow = false
 			}
 		}
@@ -88,7 +138,5 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		}
 
 		return data
-	}, parallel), func(index int, item ztype.Map) bool {
-		return len(item) > 0
-	}), nil
+	}, parallel), nil
 }
