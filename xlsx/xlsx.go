@@ -22,6 +22,7 @@ type ReadOptions struct {
 	NoHeaderRow    bool
 	MaxRows        int
 	RemoveEmptyRow bool
+	TrimSpace      bool
 }
 
 // Read read xlsx file

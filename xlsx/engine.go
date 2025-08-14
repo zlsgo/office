@@ -2,6 +2,7 @@ package xlsx
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/sohaha/zlsgo/zarray"
 	"github.com/sohaha/zlsgo/ztype"
@@ -83,6 +84,15 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		}
 	}
 
+	if o.TrimSpace {
+		for i := range cols {
+			cols[i] = strings.TrimSpace(cols[i])
+		}
+		cols = zarray.Filter(cols, func(_ int, v string) bool {
+			return v != ""
+		})
+	}
+
 	if o.Reverse {
 		rows = zarray.Reverse(rows)
 	}
@@ -130,7 +140,11 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 				continue
 			}
 
-			data[cols[j]] = rowEffective[j]
+			if o.TrimSpace {
+				data[cols[j]] = strings.TrimSpace(rowEffective[j])
+			} else {
+				data[cols[j]] = rowEffective[j]
+			}
 			if isEmptyRow && rowEffective[j] != "" {
 				isEmptyRow = false
 			}
