@@ -45,7 +45,7 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 	}
 
 	minRows := o.OffsetY + 2
-	if o.NoHeader {
+	if o.NoHeaderRow {
 		minRows = o.OffsetY + 1
 	}
 	if len(rows) < minRows {
@@ -62,7 +62,8 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 	}
 
 	var cols []string
-	if o.NoHeader {
+
+	if o.NoHeaderRow {
 		headerRow := rows[o.OffsetY]
 		cols = make([]string, len(headerRow))
 		for i := range headerRow {
@@ -86,12 +87,18 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		rows = zarray.Reverse(rows)
 	}
 
+	if o.MaxRows > 0 {
+		if len(rows) > o.MaxRows {
+			rows = rows[:o.MaxRows]
+		}
+	}
+
 	parallel := o.Parallel
 	if parallel == 0 {
 		parallel = uint(len(rows) / 3000)
 	}
 
-	return zarray.Map(rows, func(index int, row []string) ztype.Map {
+	result := zarray.Map(rows, func(index int, row []string) ztype.Map {
 		data := make(ztype.Map, len(row))
 
 		isEmptyRow := true
@@ -106,7 +113,7 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 
 		for j := range rowEffective {
 			if j >= len(cols) {
-				if o.NoHeader {
+				if o.NoHeaderRow {
 					key := toCol(o.OffsetX + j)
 					if len(o.Fields) > 0 && !zarray.Contains(o.Fields, key) {
 						continue
@@ -138,5 +145,13 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		}
 
 		return data
-	}, parallel), nil
+	}, parallel)
+
+	if o.RemoveEmptyRow {
+		result = zarray.Filter(result, func(_ int, v ztype.Map) bool {
+			return len(v) > 0
+		})
+	}
+
+	return result, nil
 }

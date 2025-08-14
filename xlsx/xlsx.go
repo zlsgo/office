@@ -12,14 +12,16 @@ import (
 )
 
 type ReadOptions struct {
-	Handler  func(index int, data ztype.Map) ztype.Map
-	Sheet    string
-	Fields   []string
-	Reverse  bool
-	Parallel uint
-	OffsetX  int
-	OffsetY  int
-	NoHeader bool
+	Handler        func(index int, data ztype.Map) ztype.Map
+	Sheet          string
+	Fields         []string
+	Reverse        bool
+	Parallel       uint
+	OffsetX        int
+	OffsetY        int
+	NoHeaderRow    bool
+	MaxRows        int
+	RemoveEmptyRow bool
 }
 
 // Read read xlsx file
