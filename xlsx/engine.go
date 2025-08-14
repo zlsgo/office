@@ -40,7 +40,7 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		o.Sheet = sheets[0]
 	}
 
-	rows, err := x.f.GetRows(o.Sheet)
+	rows, err := x.f.GetRows(o.Sheet, o.Options)
 	if err != nil {
 		return nil, err
 	}

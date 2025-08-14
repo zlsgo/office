@@ -23,6 +23,8 @@ type ReadOptions struct {
 	MaxRows        int
 	RemoveEmptyRow bool
 	TrimSpace      bool
+
+	excelize.Options
 }
 
 // Read read xlsx file
