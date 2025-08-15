@@ -53,22 +53,13 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		return ztype.Maps{}, errors.New("no data")
 	}
 
-	toCol := func(i int) string {
-		s := ""
-		for i >= 0 {
-			s = string(rune('A'+(i%26))) + s
-			i = i/26 - 1
-		}
-		return s
-	}
-
 	var cols []string
 
 	if o.NoHeaderRow {
 		headerRow := rows[o.OffsetY]
 		cols = make([]string, len(headerRow))
 		for i := range headerRow {
-			cols[i] = toCol(i)
+			cols[i] = ToCol(i)
 		}
 		rows = rows[o.OffsetY:]
 	} else {
@@ -124,7 +115,7 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		for j := range rowEffective {
 			if j >= len(cols) {
 				if o.NoHeaderRow {
-					key := toCol(o.OffsetX + j)
+					key := ToCol(o.OffsetX + j)
 					if len(o.Fields) > 0 && !zarray.Contains(o.Fields, key) {
 						continue
 					}
