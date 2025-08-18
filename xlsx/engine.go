@@ -84,6 +84,12 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		})
 	}
 
+	if o.HeaderHandler != nil {
+		for i := range cols {
+			cols[i] = o.HeaderHandler(i, cols[i])
+		}
+	}
+
 	if o.Reverse {
 		rows = zarray.Reverse(rows)
 	}
