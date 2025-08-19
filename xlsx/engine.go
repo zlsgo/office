@@ -150,6 +150,21 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		if isEmptyRow {
 			return ztype.Map{}
 		}
+		if !o.NoHeaderRow {
+			if len(o.Fields) > 0 {
+				for _, k := range o.Fields {
+					if _, ok := data[k]; !ok {
+						data[k] = nil
+					}
+				}
+			} else {
+				for _, k := range cols {
+					if _, ok := data[k]; !ok {
+						data[k] = nil
+					}
+				}
+			}
+		}
 
 		if o.Handler != nil {
 			return o.Handler(index, data)
