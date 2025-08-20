@@ -2,6 +2,7 @@ package xlsx
 
 import "strings"
 
+// ToCol converts a column index to Excel-style column name (e.g., 0 -> A, 25 -> Z, 26 -> AA)
 func ToCol(i int) string {
 	s := ""
 	for i >= 0 {
@@ -11,6 +12,7 @@ func ToCol(i int) string {
 	return s
 }
 
+// ToColIndex converts an Excel-style column name to 0-based index (e.g., A -> 0, Z -> 25, AA -> 26)
 func ToColIndex(col string) int {
 	col = strings.TrimSpace(col)
 	if col == "" {

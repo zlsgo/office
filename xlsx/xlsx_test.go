@@ -132,7 +132,7 @@ func TestOffset(t *testing.T) {
 
 	data, err = xlsx.Read(testFile, func(ro *xlsx.ReadOptions) {
 		ro.Sheet = sheet1
-		ro.NoHeader = true
+		ro.NoHeaderRow = true
 	})
 	tt.Log(data)
 	tt.NoError(err)

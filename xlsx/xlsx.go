@@ -24,6 +24,7 @@ type ReadOptions struct {
 	MaxRows        int
 	RemoveEmptyRow bool
 	TrimSpace      bool
+	HeaderMaps     map[string]string
 
 	excelize.Options
 }
