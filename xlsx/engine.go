@@ -53,14 +53,19 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		return ztype.Maps{}, errors.New("no data")
 	}
 
-	var cols []string
+	var (
+		cols      []string
+		headerRow = rows[o.OffsetY]
+	)
+
+	colsIndex := make([]string, len(headerRow))
+	for i := range headerRow {
+		colsIndex[i] = ToCol(i)
+	}
 
 	if o.NoHeaderRow {
-		headerRow := rows[o.OffsetY]
 		cols = make([]string, len(headerRow))
-		for i := range headerRow {
-			cols[i] = ToCol(i)
-		}
+		copy(cols, colsIndex)
 		rows = rows[o.OffsetY:]
 	} else {
 		cols = rows[o.OffsetY]
@@ -86,7 +91,7 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 
 	if o.HeaderHandler != nil {
 		for i := range cols {
-			cols[i] = o.HeaderHandler(i, cols[i])
+			cols[i] = o.HeaderHandler(colsIndex[o.OffsetX+i], cols[i])
 		}
 	}
 

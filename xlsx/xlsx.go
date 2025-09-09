@@ -12,8 +12,8 @@ import (
 )
 
 type ReadOptions struct {
-	Handler        func(index int, data ztype.Map) ztype.Map
-	HeaderHandler  func(index int, col string) string
+	Handler        func(row int, data ztype.Map) ztype.Map
+	HeaderHandler  func(index string, col string) string
 	Sheet          string
 	Fields         []string
 	Reverse        bool

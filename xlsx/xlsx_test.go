@@ -36,7 +36,13 @@ func TestBase(t *testing.T) {
 
 	data, err := xlsx.Read(testFile, func(ro *xlsx.ReadOptions) {
 		ro.Sheet = sheet
-		ro.Handler = func(index int, data ztype.Map) ztype.Map { return data }
+		ro.Handler = func(row int, data ztype.Map) ztype.Map {
+			return data
+		}
+		ro.HeaderHandler = func(index string, col string) string {
+			tt.Log(index, col)
+			return col
+		}
 	})
 	tt.NoError(err)
 	tt.Equal(2, len(data))
