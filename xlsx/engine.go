@@ -29,7 +29,7 @@ func Open(path string) (*Xlsx, error) {
 		}
 		return &Xlsx{f: f, path: path}, nil
 	}
-	return &Xlsx{f: excelize.NewFile(), path: path}, nil
+	return &Xlsx{f: excelize.NewFile(), path: ""}, nil
 }
 
 func (x *Xlsx) Close() error {

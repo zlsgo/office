@@ -131,11 +131,16 @@ func (x *Xlsx) Write(data ztype.Maps, opt ...func(*WriteOptions)) ([]byte, error
 	return b.Bytes(), nil
 }
 
-func (x *Xlsx) WriteFile(data ztype.Maps, opt ...func(*WriteOptions)) error {
+func (x *Xlsx) WriteFile(path string, data ztype.Maps, opt ...func(*WriteOptions)) error {
 	b, err := x.Write(data, opt...)
 	if err != nil {
 		return err
 	}
+
+	if path != "" {
+		return x.f.SaveAs(path)
+	}
+
 	if x.path != "" {
 		return zfile.WriteFile(x.path, b)
 	}
