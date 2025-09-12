@@ -2,7 +2,9 @@ package xlsx_test
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/sohaha/zlsgo"
@@ -57,11 +59,40 @@ func TestBase(t *testing.T) {
 	tt.EqualTrue(len(b) > 0)
 
 	outFile := "./testdata/test2.xlsx"
-	err = xlsx.WriteFile(outFile, data, func(wo *xlsx.WriteOptions) {
-		wo.Sheet = "Test"
+	wf, err := xlsx.Open(outFile)
+	tt.NoError(err)
+	err = wf.WriteFile(data, func(wo *xlsx.WriteOptions) {
+		// wo.Sheet = "Test"
+		wo.CellHandler = func(sheet string, cell string, value interface{}) ([]xlsx.RichText, int) {
+			color := fmt.Sprintf("%06x", rand.Intn(0xFFFFFF))
+			size := 12.0
+			style := 0
+			if strings.HasSuffix(cell, "1") {
+				size = 14.0
+				style, _ = wf.NewStyle(&excelize.Style{
+					Fill: excelize.Fill{Type: "pattern", Color: []string{"7030A0"}, Shading: 1},
+					Font: &excelize.Font{
+						Size:      size,
+						Color:     "FFFFFF",
+						VertAlign: "baseline",
+					},
+				})
+				return nil, style
+			}
+			return []xlsx.RichText{
+				{
+					Text: ztype.ToString(value),
+					Font: &excelize.Font{
+						Size:      size,
+						Color:     color,
+						VertAlign: "baseline",
+					},
+				},
+			}, style
+		}
 	})
 	tt.NoError(err)
-	_ = os.Remove(outFile)
+	// _ = os.Remove(outFile)
 }
 
 func TestOffset(t *testing.T) {
