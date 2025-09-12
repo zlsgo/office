@@ -17,19 +17,19 @@ type Xlsx struct {
 }
 
 func Open(path string) (*Xlsx, error) {
-	f, err := excelize.OpenFile(path)
-	if err != nil {
-		if !strings.Contains(err.Error(), "no such file") {
-			return nil, err
-		}
-
-		f = excelize.NewFile()
-	}
-
 	if path != "" {
 		path = zfile.RealPath(path)
+		f, err := excelize.OpenFile(path)
+		if err != nil {
+			if !strings.Contains(err.Error(), "no such file") {
+				return nil, err
+			}
+
+			f = excelize.NewFile()
+		}
+		return &Xlsx{f: f, path: path}, nil
 	}
-	return &Xlsx{f: f, path: path}, nil
+	return &Xlsx{f: excelize.NewFile(), path: path}, nil
 }
 
 func (x *Xlsx) Close() error {
