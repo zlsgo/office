@@ -12,20 +12,21 @@ import (
 )
 
 type ReadOptions struct {
-	Handler            func(row int, data ztype.Map) ztype.Map
-	HeaderHandler      func(index string, col string) string
-	Sheet              string
-	Fields             []string
-	RawCellValueFields []string
-	Reverse            bool
-	Parallel           uint
-	OffsetX            int
-	OffsetY            int
-	NoHeaderRow        bool
-	MaxRows            int
-	RemoveEmptyRow     bool
-	TrimSpace          bool
-	HeaderMaps         map[string]string
+	Handler             func(row int, data ztype.Map) ztype.Map
+	HeaderHandler       func(index string, col string) string
+	Sheet               string
+	Fields              []string
+	RawCellValueFields  []string
+	CalcCellValueFields []string
+	Reverse             bool
+	Parallel            uint
+	OffsetX             int
+	OffsetY             int
+	NoHeaderRow         bool
+	MaxRows             int
+	RemoveEmptyRow      bool
+	TrimSpace           bool
+	HeaderMaps          map[string]string
 
 	excelize.Options
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/sohaha/zlsgo/zarray"
 	"github.com/sohaha/zlsgo/zfile"
@@ -52,14 +53,13 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 	}
 
 	rawRows := [][]string{}
+	var err error
 	if len(o.RawCellValueFields) > 0 && !o.RawCellValue {
 		rawOpt := o.Options
 		rawOpt.RawCellValue = true
-		rawRows, _ = x.f.GetRows(o.Sheet, rawOpt)
-		if !o.NoHeaderRow && len(rawRows) > o.OffsetY {
-			rawRows = rawRows[o.OffsetY+1:]
-		} else if o.NoHeaderRow && len(rawRows) > o.OffsetY {
-			rawRows = rawRows[o.OffsetY:]
+		rawRows, err = x.f.GetRows(o.Sheet, rawOpt)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -95,6 +95,16 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		rows = rows[o.OffsetY+1:]
 	}
 
+	rawStart := o.OffsetY
+	if !o.NoHeaderRow {
+		rawStart = o.OffsetY + 1
+	}
+	if rawStart < len(rawRows) {
+		rawRows = rawRows[rawStart:]
+	} else {
+		rawRows = [][]string{}
+	}
+
 	if o.OffsetX > 0 {
 		if o.OffsetX < len(cols) {
 			cols = cols[o.OffsetX:]
@@ -107,9 +117,11 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		for i := range cols {
 			cols[i] = strings.TrimSpace(cols[i])
 		}
-		cols = zarray.Filter(cols, func(_ int, v string) bool {
-			return v != ""
-		})
+		for i := range cols {
+			if cols[i] == "" {
+				cols[i] = colsIndex[o.OffsetX+i]
+			}
+		}
 	}
 
 	if o.HeaderHandler != nil {
@@ -126,33 +138,61 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 		}
 	}
 
+	dataStartRowNum := o.OffsetY + 1
+	if !o.NoHeaderRow {
+		dataStartRowNum = o.OffsetY + 2
+	}
+
+	type rowMeta struct {
+		row    []string
+		rawRow []string
+		rowNum int
+	}
+
+	rowsMeta := make([]rowMeta, len(rows))
+	for i, row := range rows {
+		rowNum := dataStartRowNum + i
+		var rawRow []string
+		if i < len(rawRows) {
+			rawRow = rawRows[i]
+		}
+		rowsMeta[i] = rowMeta{row: row, rawRow: rawRow, rowNum: rowNum}
+	}
+
 	if o.Reverse {
-		rows = zarray.Reverse(rows)
+		rowsMeta = zarray.Reverse(rowsMeta)
 	}
 
 	if o.MaxRows > 0 {
-		if len(rows) > o.MaxRows {
-			rows = rows[:o.MaxRows]
+		if len(rowsMeta) > o.MaxRows {
+			rowsMeta = rowsMeta[:o.MaxRows]
 		}
 	}
 
 	parallel := o.Parallel
 	if parallel == 0 {
-		parallel = uint(len(rows) / 3000)
+		parallel = 1
+		if len(rowsMeta) > 3000 {
+			parallel = uint(len(rowsMeta) / 3000)
+			if parallel == 0 {
+				parallel = 1
+			}
+		}
 	}
 
-	result := zarray.Map(rows, func(index int, row []string) ztype.Map {
+	var formulaMu sync.Mutex
+
+	result := zarray.Map(rowsMeta, func(index int, meta rowMeta) ztype.Map {
+		row := meta.row
 		data := make(ztype.Map, len(row))
 
 		isEmptyRow := true
 		rowEffective := row
 		rawRowEffective := []string{}
-		if len(rawRows) > index {
-			rawRow := rawRows[index]
-			if o.OffsetX < len(rawRow) {
-				rawRowEffective = rawRow[o.OffsetX:]
-			}
+		if o.OffsetX < len(meta.rawRow) {
+			rawRowEffective = meta.rawRow[o.OffsetX:]
 		}
+		rowNum := meta.rowNum
 
 		if o.OffsetX > 0 {
 			if o.OffsetX < len(row) {
@@ -171,23 +211,26 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 					}
 
 					value := rowEffective[j]
-					// Determine if we need raw value (formula)
-					needRawValue := o.RawCellValue || (len(rawRowEffective) > j && zarray.Contains(o.RawCellValueFields, key))
+					needRawValue := (o.RawCellValue || zarray.Contains(o.RawCellValueFields, key)) && !zarray.Contains(o.CalcCellValueFields, key)
 					if needRawValue {
-						// Try rawRows first (if available), otherwise get formula
 						if len(rawRowEffective) > j && rawRowEffective[j] != "" {
 							value = rawRowEffective[j]
 						}
 						if value == "" {
-							cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(index+o.OffsetY+2)
-							if formula, err := x.f.GetCellFormula(o.Sheet, cellAddr); err == nil && formula != "" {
+							cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(rowNum)
+							formulaMu.Lock()
+							formula, err := x.f.GetCellFormula(o.Sheet, cellAddr)
+							formulaMu.Unlock()
+							if err == nil && formula != "" {
 								value = formula
 							}
 						}
 					} else if value == "" || strings.HasPrefix(value, "=") {
-						// Use CalcCellValue for computed values
-						cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(index+o.OffsetY+2)
-						if calcVal, err := x.f.CalcCellValue(o.Sheet, cellAddr); err == nil && calcVal != "" {
+						cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(rowNum)
+						formulaMu.Lock()
+						calcVal, err := x.f.CalcCellValue(o.Sheet, cellAddr)
+						formulaMu.Unlock()
+						if err == nil && calcVal != "" {
 							value = calcVal
 						}
 					}
@@ -208,23 +251,26 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 			}
 
 			value := rowEffective[j]
-			// Determine if we need raw value (formula)
-			needRawValue := o.RawCellValue || (len(rawRowEffective) > j && zarray.Contains(o.RawCellValueFields, cols[j]))
+			needRawValue := (o.RawCellValue || zarray.Contains(o.RawCellValueFields, cols[j])) && !zarray.Contains(o.CalcCellValueFields, cols[j])
 			if needRawValue {
-				// Try rawRows first (if available), otherwise get formula
 				if len(rawRowEffective) > j && rawRowEffective[j] != "" {
 					value = rawRowEffective[j]
 				}
 				if value == "" {
-					cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(index+o.OffsetY+2)
-					if formula, err := x.f.GetCellFormula(o.Sheet, cellAddr); err == nil && formula != "" {
+					cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(rowNum)
+					formulaMu.Lock()
+					formula, err := x.f.GetCellFormula(o.Sheet, cellAddr)
+					formulaMu.Unlock()
+					if err == nil && formula != "" {
 						value = formula
 					}
 				}
 			} else if value == "" || strings.HasPrefix(value, "=") {
-				// Use CalcCellValue for computed values
-				cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(index+o.OffsetY+2)
-				if calcVal, err := x.f.CalcCellValue(o.Sheet, cellAddr); err == nil && calcVal != "" {
+				cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(rowNum)
+				formulaMu.Lock()
+				calcVal, err := x.f.CalcCellValue(o.Sheet, cellAddr)
+				formulaMu.Unlock()
+				if err == nil && calcVal != "" {
 					value = calcVal
 				}
 			}
@@ -263,6 +309,7 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 
 		return data
 	}, parallel)
+	rowsMeta = nil
 
 	if o.RemoveEmptyRow {
 		result = zarray.Filter(result, func(_ int, v ztype.Map) bool {

@@ -261,3 +261,118 @@ func TestRawCellValueFields(t *testing.T) {
 	tt.Equal(100, data[0].Get("Value").Int())
 	tt.Equal(200, data[1].Get("Value").Int())
 }
+
+func TestRawCellValueFieldsNoHeaderOffset(t *testing.T) {
+	tt := zlsgo.NewTest(t)
+
+	testFile := "./testdata/test_raw_cell_value_no_header.xlsx"
+	defer os.Remove(testFile)
+
+	sheet := "RawNoHeader"
+	f := excelize.NewFile()
+	f.NewSheet(sheet)
+
+	_ = f.SetCellValue(sheet, "A1", "Skip")
+	_ = f.SetCellValue(sheet, "B1", "Skip")
+
+	_ = f.SetCellValue(sheet, "A2", "Row1")
+	_ = f.SetCellFormula(sheet, "B2", "=1+1")
+
+	_ = f.SetCellValue(sheet, "A3", "Row2")
+	_ = f.SetCellFormula(sheet, "B3", "=2+2")
+
+	err := f.SaveAs(testFile)
+	tt.NoError(err)
+
+	data, err := xlsx.Read(testFile, func(ro *xlsx.ReadOptions) {
+		ro.Sheet = sheet
+		ro.NoHeaderRow = true
+		ro.OffsetY = 1
+		ro.RawCellValueFields = []string{"B"}
+	})
+	tt.NoError(err)
+	tt.Equal(2, len(data))
+	tt.Equal("=1+1", data[0].Get("B").String())
+	tt.Equal("=2+2", data[1].Get("B").String())
+}
+
+func TestRawCellValueFieldsReverse(t *testing.T) {
+	tt := zlsgo.NewTest(t)
+
+	testFile := "./testdata/test_raw_cell_value_reverse.xlsx"
+	defer os.Remove(testFile)
+
+	sheet := "RawReverse"
+	f := excelize.NewFile()
+	f.NewSheet(sheet)
+
+	headers := []string{"Name", "Formula"}
+	_ = f.SetSheetRow(sheet, "A1", &headers)
+
+	_ = f.SetCellValue(sheet, "A2", "R1")
+	_ = f.SetCellFormula(sheet, "B2", "=1+1")
+	_ = f.SetCellValue(sheet, "A3", "R2")
+	_ = f.SetCellFormula(sheet, "B3", "=2+2")
+	_ = f.SetCellValue(sheet, "A4", "R3")
+	_ = f.SetCellFormula(sheet, "B4", "=3+3")
+
+	err := f.SaveAs(testFile)
+	tt.NoError(err)
+
+	data, err := xlsx.Read(testFile, func(ro *xlsx.ReadOptions) {
+		ro.Sheet = sheet
+		ro.Reverse = true
+		ro.RawCellValueFields = []string{"Formula"}
+	})
+	tt.NoError(err)
+	tt.Equal(3, len(data))
+	tt.Equal("R3", data[0].Get("Name").String())
+	tt.Equal("=3+3", data[0].Get("Formula").String())
+	tt.Equal("R2", data[1].Get("Name").String())
+	tt.Equal("=2+2", data[1].Get("Formula").String())
+	tt.Equal("R1", data[2].Get("Name").String())
+	tt.Equal("=1+1", data[2].Get("Formula").String())
+}
+
+func TestCalcCellValueFields(t *testing.T) {
+	tt := zlsgo.NewTest(t)
+
+	testFile := "./testdata/test_calc_cell_value.xlsx"
+	defer os.Remove(testFile)
+
+	sheet := "CalcFields"
+	f := excelize.NewFile()
+	f.NewSheet(sheet)
+
+	headers := []string{"Name", "Formula1", "Value", "Formula2"}
+	_ = f.SetSheetRow(sheet, "A1", &headers)
+
+	_ = f.SetCellValue(sheet, "A2", "Row1")
+	_ = f.SetCellFormula(sheet, "B2", "=10+20")
+	_ = f.SetCellValue(sheet, "C2", 100)
+	_ = f.SetCellFormula(sheet, "D2", "=5*5")
+
+	_ = f.SetCellValue(sheet, "A3", "Row2")
+	_ = f.SetCellFormula(sheet, "B3", "=30+40")
+	_ = f.SetCellValue(sheet, "C3", 200)
+	_ = f.SetCellFormula(sheet, "D3", "=6*6")
+
+	err := f.SaveAs(testFile)
+	tt.NoError(err)
+
+	data, err := xlsx.Read(testFile, func(ro *xlsx.ReadOptions) {
+		ro.Sheet = sheet
+		ro.RawCellValue = true
+		ro.CalcCellValueFields = []string{"Formula1", "Value"}
+	})
+	tt.NoError(err)
+	tt.Equal(2, len(data))
+
+	tt.Equal("30", data[0].Get("Formula1").String())
+	tt.Equal("70", data[1].Get("Formula1").String())
+	tt.Equal(100, data[0].Get("Value").Int())
+	tt.Equal(200, data[1].Get("Value").Int())
+
+	tt.Equal("=5*5", data[0].Get("Formula2").String())
+	tt.Equal("=6*6", data[1].Get("Formula2").String())
+}
