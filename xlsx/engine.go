@@ -2,6 +2,7 @@ package xlsx
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/sohaha/zlsgo/zarray"
@@ -48,6 +49,18 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 			return nil, errors.New("no sheet")
 		}
 		o.Sheet = sheets[0]
+	}
+
+	rawRows := [][]string{}
+	if len(o.RawCellValueFields) > 0 && !o.RawCellValue {
+		rawOpt := o.Options
+		rawOpt.RawCellValue = true
+		rawRows, _ = x.f.GetRows(o.Sheet, rawOpt)
+		if !o.NoHeaderRow && len(rawRows) > o.OffsetY {
+			rawRows = rawRows[o.OffsetY+1:]
+		} else if o.NoHeaderRow && len(rawRows) > o.OffsetY {
+			rawRows = rawRows[o.OffsetY:]
+		}
 	}
 
 	rows, err := x.f.GetRows(o.Sheet, o.Options)
@@ -133,6 +146,14 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 
 		isEmptyRow := true
 		rowEffective := row
+		rawRowEffective := []string{}
+		if len(rawRows) > index {
+			rawRow := rawRows[index]
+			if o.OffsetX < len(rawRow) {
+				rawRowEffective = rawRow[o.OffsetX:]
+			}
+		}
+
 		if o.OffsetX > 0 {
 			if o.OffsetX < len(row) {
 				rowEffective = row[o.OffsetX:]
@@ -148,7 +169,33 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 					if len(o.Fields) > 0 && !zarray.Contains(o.Fields, key) {
 						continue
 					}
-					data[key] = rowEffective[j]
+
+					value := rowEffective[j]
+					// Determine if we need raw value (formula)
+					needRawValue := o.RawCellValue || (len(rawRowEffective) > j && zarray.Contains(o.RawCellValueFields, key))
+					if needRawValue {
+						// Try rawRows first (if available), otherwise get formula
+						if len(rawRowEffective) > j && rawRowEffective[j] != "" {
+							value = rawRowEffective[j]
+						}
+						if value == "" {
+							cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(index+o.OffsetY+2)
+							if formula, err := x.f.GetCellFormula(o.Sheet, cellAddr); err == nil && formula != "" {
+								value = formula
+							}
+						}
+					} else if value == "" || strings.HasPrefix(value, "=") {
+						// Use CalcCellValue for computed values
+						cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(index+o.OffsetY+2)
+						if calcVal, err := x.f.CalcCellValue(o.Sheet, cellAddr); err == nil && calcVal != "" {
+							value = calcVal
+						}
+					}
+					if o.TrimSpace {
+						value = strings.TrimSpace(value)
+					}
+
+					data[key] = value
 					if isEmptyRow && rowEffective[j] != "" {
 						isEmptyRow = false
 					}
@@ -160,11 +207,32 @@ func (x *Xlsx) Read(opt ...func(*ReadOptions)) (ztype.Maps, error) {
 				continue
 			}
 
-			if o.TrimSpace {
-				data[cols[j]] = strings.TrimSpace(rowEffective[j])
-			} else {
-				data[cols[j]] = rowEffective[j]
+			value := rowEffective[j]
+			// Determine if we need raw value (formula)
+			needRawValue := o.RawCellValue || (len(rawRowEffective) > j && zarray.Contains(o.RawCellValueFields, cols[j]))
+			if needRawValue {
+				// Try rawRows first (if available), otherwise get formula
+				if len(rawRowEffective) > j && rawRowEffective[j] != "" {
+					value = rawRowEffective[j]
+				}
+				if value == "" {
+					cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(index+o.OffsetY+2)
+					if formula, err := x.f.GetCellFormula(o.Sheet, cellAddr); err == nil && formula != "" {
+						value = formula
+					}
+				}
+			} else if value == "" || strings.HasPrefix(value, "=") {
+				// Use CalcCellValue for computed values
+				cellAddr := ToCol(o.OffsetX+j) + strconv.Itoa(index+o.OffsetY+2)
+				if calcVal, err := x.f.CalcCellValue(o.Sheet, cellAddr); err == nil && calcVal != "" {
+					value = calcVal
+				}
 			}
+			if o.TrimSpace {
+				value = strings.TrimSpace(value)
+			}
+
+			data[cols[j]] = value
 			if isEmptyRow && rowEffective[j] != "" {
 				isEmptyRow = false
 			}

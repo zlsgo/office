@@ -190,3 +190,74 @@ func TestOffset(t *testing.T) {
 	tt.Equal("no data", err.Error())
 	tt.Equal(0, len(data))
 }
+
+func TestRawCellValueFields(t *testing.T) {
+	tt := zlsgo.NewTest(t)
+
+	testFile := "./testdata/test_raw_cell_value.xlsx"
+	defer os.Remove(testFile)
+
+	sheet := "RawCellValue"
+	f := excelize.NewFile()
+	f.NewSheet(sheet)
+
+	headers := []string{"Name", "Formula", "Value", "AnotherFormula"}
+	_ = f.SetSheetRow(sheet, "A1", &headers)
+
+	_ = f.SetCellValue(sheet, "A2", "Row1")
+	_ = f.SetCellValue(sheet, "C2", 100)
+	_ = f.SetCellFormula(sheet, "B2", "=SUM(10,20)")
+	_ = f.SetCellFormula(sheet, "D2", "=A2&\"_test\"")
+
+	_ = f.SetCellValue(sheet, "A3", "Row2")
+	_ = f.SetCellValue(sheet, "C3", 200)
+	_ = f.SetCellFormula(sheet, "B3", "=A2&\"_suffix\"")
+	_ = f.SetCellFormula(sheet, "D3", "=CONCATENATE(A2,\"_x\")")
+
+	_ = f.SetCellValue(sheet, "A4", "Row3")
+	_ = f.SetCellValue(sheet, "C4", 300)
+	_ = f.SetCellFormula(sheet, "B4", "=UPPER(\"hello\")")
+	_ = f.SetCellFormula(sheet, "D4", "=B3")
+
+	err := f.SaveAs(testFile)
+	tt.NoError(err)
+
+	data, err := xlsx.Read(testFile, func(ro *xlsx.ReadOptions) {
+		ro.Sheet = sheet
+	})
+	tt.NoError(err)
+	tt.Equal(3, len(data))
+	tt.Equal("30", data[0].Get("Formula").String())
+	tt.Equal("Row1_suffix", data[1].Get("Formula").String())
+	tt.Equal("HELLO", data[2].Get("Formula").String())
+
+	data, err = xlsx.Read(testFile, func(ro *xlsx.ReadOptions) {
+		ro.Sheet = sheet
+		ro.RawCellValueFields = []string{"Formula", "AnotherFormula"}
+	})
+	tt.NoError(err)
+	tt.Equal(3, len(data))
+	tt.Equal("=SUM(10,20)", data[0].Get("Formula").String())
+	tt.Equal("=A2&\"_suffix\"", data[1].Get("Formula").String())
+	tt.Equal("=UPPER(\"hello\")", data[2].Get("Formula").String())
+	tt.Equal("=A2&\"_test\"", data[0].Get("AnotherFormula").String())
+	tt.Equal("=CONCATENATE(A2,\"_x\")", data[1].Get("AnotherFormula").String())
+	tt.Equal("=B3", data[2].Get("AnotherFormula").String())
+	tt.Equal(100, data[0].Get("Value").Int())
+	tt.Equal(200, data[1].Get("Value").Int())
+
+	data, err = xlsx.Read(testFile, func(ro *xlsx.ReadOptions) {
+		ro.Sheet = sheet
+		ro.RawCellValue = true
+	})
+	tt.NoError(err)
+	tt.Equal(3, len(data))
+	tt.Equal("=SUM(10,20)", data[0].Get("Formula").String())
+	tt.Equal("=A2&\"_suffix\"", data[1].Get("Formula").String())
+	tt.Equal("=UPPER(\"hello\")", data[2].Get("Formula").String())
+	tt.Equal("=A2&\"_test\"", data[0].Get("AnotherFormula").String())
+	tt.Equal("=CONCATENATE(A2,\"_x\")", data[1].Get("AnotherFormula").String())
+	tt.Equal("=B3", data[2].Get("AnotherFormula").String())
+	tt.Equal(100, data[0].Get("Value").Int())
+	tt.Equal(200, data[1].Get("Value").Int())
+}
